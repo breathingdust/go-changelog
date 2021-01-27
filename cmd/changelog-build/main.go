@@ -18,13 +18,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	var lastRelease, thisRelease, repoDir, entriesDir, noteTmpl, changelogTmpl string
+	var lastRelease, thisRelease, repoDir, entriesDir, noteTmpl, changelogTmpl, storageMode string
 	flag.StringVar(&lastRelease, "last-release", "", "a git ref to the last commit in the previous release")
 	flag.StringVar(&thisRelease, "this-release", "", "a git ref to the last commit to include in this release")
 	flag.StringVar(&repoDir, "git-dir", pwd, "the directory of the git repo being released")
 	flag.StringVar(&entriesDir, "entries-dir", "", "the directory within the repo containing changelog entry files")
 	flag.StringVar(&noteTmpl, "note-template", "", "the path of the file holding the template to use for each item in the changelog")
-	flag.StringVar(&changelogTmpl, "changelog-template", "", "the path of the file holding the template to use for the entire changelog")
+	flag.StringVar(&changelogTmpl, "changelog-template", "", "Athe path of the file holding the template to use for the entire changelog")
+	flag.StringVar(&storageMode, "storage-mode", "memory", "Use either memory or filesystem when loading a working copy of the repository. Valid values are: memory / filesystem")
 	flag.Parse()
 
 	if lastRelease == "" {
@@ -69,6 +70,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	if storageMode != "memory" && storageMode != "filesystem" {
+		fmt.Fprintln(os.Stderr, "Must specify a valid storage mode. Acceptable values are: memory, filesystem")
+		fmt.Fprintln(os.Stderr, "")
+		flag.Usage()
+		os.Exit(1)
+	}
+
 	tmpl := template.New(filepath.Base(changelogTmpl)).Funcs(template.FuncMap{
 		"sort": func(in []changelog.Note) []changelog.Note {
 			sort.Slice(in, changelog.SortNotes(in))
@@ -101,7 +109,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	entries, err := changelog.Diff(repoDir, lastRelease, thisRelease, entriesDir)
+	entries, err := changelog.Diff(repoDir, lastRelease, thisRelease, entriesDir, storageMode)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

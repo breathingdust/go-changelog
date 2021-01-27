@@ -1,14 +1,18 @@
 package changelog
 
 import (
+	"errors"
 	"io/ioutil"
 	"path/filepath"
 	"sort"
 
-	"gopkg.in/src-d/go-billy.v4/memfs"
-	"gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/plumbing"
-	"gopkg.in/src-d/go-git.v4/storage/memory"
+	"github.com/go-git/go-billy/v5/memfs"
+	"github.com/go-git/go-billy/v5/osfs"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/cache"
+	"github.com/go-git/go-git/v5/storage/filesystem"
+	"github.com/go-git/go-git/v5/storage/memory"
 )
 
 type Entry struct {
@@ -16,10 +20,35 @@ type Entry struct {
 	Body  string
 }
 
-func Diff(repo, ref1, ref2, dir string) ([]Entry, error) {
-	r, err := git.Clone(memory.NewStorage(), memfs.New(), &git.CloneOptions{
-		URL: repo,
-	})
+func Diff(repo, ref1, ref2, dir, storageMode string) ([]Entry, error) {
+
+	var r *git.Repository
+	var err error
+
+	if storageMode == "memory" {
+		r, err = git.Clone(memory.NewStorage(), memfs.New(), &git.CloneOptions{
+			URL: repo,
+		})
+	} else if storageMode == "filesystem" {
+		storerDir, err := ioutil.TempDir("/tmp", "go-changelog-storer")
+		if err != nil {
+			return nil, err
+		}
+		worktreeDir, err := ioutil.TempDir("/tmp", "go-changelog-worktree")
+		if err != nil {
+			return nil, err
+		}
+
+		fs := osfs.New(storerDir)
+		storer := filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
+		worktree := osfs.New(worktreeDir)
+		r, err = git.Clone(storer, worktree, &git.CloneOptions{
+			URL: repo,
+		})
+	} else {
+		return nil, errors.New("Invalid storage mode specified")
+	}
+
 	if err != nil {
 		return nil, err
 	}
